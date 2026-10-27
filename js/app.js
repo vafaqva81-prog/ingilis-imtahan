@@ -267,7 +267,7 @@ function phrases(a){
   var cats=window.PHRASES,cur=a[0]||'all',fav=P.fav||(P.fav={}),q='';
   var synth=window.speechSynthesis;
   var rate=+(P.rate||0.9),acc=P.acc||'en-US',hide=!!P.phHide;
-  function voice(){if(!synth)return null;var vs=synth.getVoices().filter(function(v){return v.lang&&v.lang.replace('_','-').toLowerCase().indexOf(acc.toLowerCase())===0;});return vs[0]||synth.getVoices().filter(function(v){return /^en/i.test(v.lang);})[0]||null;}
+  function voice(){return synth?pickVoice(acc):null;}
   function say(t,el){if(!synth){alert('Brauzer səsləndirməni dəstəkləmir.');return;}synth.cancel();var u=new SpeechSynthesisUtterance(t);u.lang=acc;u.rate=rate;var v=voice();if(v)u.voice=v;
     if(el){el.classList.add('spk');u.onend=u.onerror=function(){el.classList.remove('spk');};}synth.speak(u);}
   function list(){var out=[];cats.forEach(function(c){if(cur==='all'||cur===c.id||cur==='fav')c.p.forEach(function(p){if(cur==='fav'&&!fav[p[0]])return;if(q&&(p[0]+' '+p[1]).toLowerCase().indexOf(q)<0)return;out.push([c,p]);});});return out;}
@@ -279,6 +279,8 @@ function phrases(a){
       '<div class="row seg" style="flex-wrap:wrap">'+tabs.map(function(t){return '<a class="btn sm'+(cur===t[0]?' pri':'')+'" href="#/phrases/'+t[0]+'">'+t[1]+'</a>';}).join('')+'</div>'+
       '<div class="row" style="margin:12px 0"><input class="search" id="pq" placeholder="Axtar…" value="'+esc(q)+'"><button class="btn sm" id="ph">'+(hide?'Tərcüməni göstər':'Tərcüməni gizlət')+'</button><button class="btn sm" id="pall">▶ Hamısını oxu</button></div>'+
       '<div class="row" style="margin-bottom:12px;gap:10px;align-items:center"><span class="mut">Sürət</span><input type="range" id="pr" min="0.5" max="1.2" step="0.1" value="'+rate+'" style="max-width:160px"><select id="pacc" class="search" style="max-width:160px"><option value="en-US"'+(acc==='en-US'?' selected':'')+'>Amerikan</option><option value="en-GB"'+(acc==='en-GB'?' selected':'')+'>Britaniya</option></select></div>'+
+      '<div class="row" style="margin-bottom:12px;gap:10px;align-items:center"><span class="mut">Səs</span><select id="pvoice" class="search" style="max-width:300px"><option value="">Avtomatik (ən yaxşı)</option>'+enVoices(acc).map(function(v){return '<option value="'+esc(v.voiceURI||v.name)+'"'+((P.voice&&(P.voice===v.voiceURI||P.voice===v.name))?' selected':'')+'>'+esc(v.name)+'</option>';}).join('')+'</select><button class="btn sm" id="ptest">Sına</button></div>'+
+      '<p class="mut" style="margin:-4px 0 12px;font-size:13px">Səs boğuq və ya burunda eşidilirsə, “Səs” siyahısından başqa birini seç (adında Natural, Google, Premium olanlar adətən daha təmizdir). Seçim bütün saytda keçərlidir.</p>'+
       '<div class="card phl">'+rows+'</div>');
     Array.prototype.forEach.call(app.querySelectorAll('.spk-b'),function(b){b.onclick=function(){say(items[+b.dataset.i][1][0],b);};});
     Array.prototype.forEach.call(app.querySelectorAll('.fv'),function(b){b.onclick=function(){var k=items[+b.dataset.f][1][0];if(fav[k])delete fav[k];else fav[k]=1;save();draw();};});
@@ -286,7 +288,10 @@ function phrases(a){
     var inp=document.getElementById('pq');inp.oninput=function(){q=this.value.toLowerCase();var pos=this.selectionStart;draw();var n=document.getElementById('pq');n.focus();n.setSelectionRange(pos,pos);};
     document.getElementById('ph').onclick=function(){hide=!hide;P.phHide=hide;save();draw();};
     document.getElementById('pr').onchange=function(){rate=+this.value;P.rate=rate;save();};
-    document.getElementById('pacc').onchange=function(){acc=this.value;P.acc=acc;save();};
+    document.getElementById('pacc').onchange=function(){acc=this.value;P.acc=acc;P.voice='';save();draw();};
+    document.getElementById('pvoice').onchange=function(){P.voice=this.value;save();say('Hello! How are you today?');};
+    document.getElementById('ptest').onclick=function(){say('Hello! How are you today? Let us practise English together.');};
+    if(synth&&!enVoices(acc).length){synth.onvoiceschanged=function(){synth.onvoiceschanged=null;draw();};}
     document.getElementById('pall').onclick=function(){if(!synth)return;synth.cancel();items.forEach(function(x){var u=new SpeechSynthesisUtterance(x[1][0]);u.lang=acc;u.rate=rate;var v=voice();if(v)u.voice=v;synth.speak(u);});};
   }
   draw();
@@ -491,11 +496,32 @@ function progress(){
 
 
 /* ---------- ümumi səsləndirmə ---------- */
+/* ən təmiz ingilis səsini seç: təbii/şəbəkə səsləri yuxarı, robot səsləri aşağı */
+function voiceScore(v){
+  var n=(v.name||'')+' '+(v.voiceURI||''),s=0;
+  if(/natural|neural|online|premium|enhanced/i.test(n))s+=50;
+  if(/google/i.test(n))s+=30;
+  if(/aria|jenny|guy|sonia|libby|ryan|samantha|daniel|karen|ava|serena|allison|susan|moira|tessa|oliver/i.test(n))s+=25;
+  if(/espeak|festival|compact|david|zira|mark|hazel|george|hedda|robot/i.test(n))s-=40;
+  if(!v.localService)s+=5;
+  return s;
+}
+function enVoices(acc){
+  var syn=window.speechSynthesis;if(!syn)return [];
+  var all=syn.getVoices().filter(function(v){return v.lang&&/^en/i.test(v.lang.replace('_','-'));});
+  var pre=all.filter(function(v){return v.lang.replace('_','-').toLowerCase().indexOf(String(acc||'en-US').toLowerCase())===0;});
+  return (pre.length?pre:all).slice().sort(function(a,b){return voiceScore(b)-voiceScore(a);});
+}
+function pickVoice(acc){
+  var vs=enVoices(acc),want=P&&P.voice;
+  if(want){for(var i=0;i<vs.length;i++){if(vs[i].voiceURI===want||vs[i].name===want)return vs[i];}
+    var all=window.speechSynthesis.getVoices();for(var j=0;j<all.length;j++){if(all[j].voiceURI===want||all[j].name===want)return all[j];}}
+  return vs[0]||null;
+}
 function speakEn(list,el){
   var syn=window.speechSynthesis;if(!syn){alert('Brauzer səsləndirməni dəstəkləmir.');return;}
   syn.cancel();var acc=(P&&P.acc)||'en-US',rate=+((P&&P.rate)||0.9);
-  var vs=syn.getVoices().filter(function(v){return v.lang&&v.lang.replace('_','-').toLowerCase().indexOf(acc.toLowerCase())===0;});
-  var voice=vs[0]||syn.getVoices().filter(function(v){return /^en/i.test(v.lang);})[0]||null;
+  var voice=pickVoice(acc);
   if(el)el.classList.add('spk');
   [].concat(list).forEach(function(t,i,arr){var u=new SpeechSynthesisUtterance(t);u.lang=acc;u.rate=rate;if(voice)u.voice=voice;if(i===arr.length-1)u.onend=u.onerror=function(){if(el)el.classList.remove('spk');};syn.speak(u);});
 }
@@ -543,7 +569,8 @@ function help(){
    ['7-ci həftə','Vocabulary 51–101 + Söz yaradılması','Hər gün Söz yaradılması cədvəlindən 10 kök yoxla (Part 3).'],
    ['8-ci həftə','İmtahan məşqi + təkrar','İmtahan bölməsində 2 testi həll et. Kurslar → B2 hazırlıq kursu-də Review və Progress Test bölmələrində qarışıq test yarat.']];
   h('<h1>Layihə haqqında</h1><p class="sub">Bu nədir və necə istifadə etməli.</p>'+
-   '<div class="card"><h3 style="margin-top:0">Layihə nədir?</h3><p>İngilis dilini sıfırdan B2 səviyyəsinə qədər öyrənmək və <b>Cambridge B2 First</b> imtahanına hazırlaşmaq üçün sayt. Dörd kursun mövzuları Azərbaycanca izah olunur, hər dərsdə sxem, nümunə, tipik səhvlər və yoxlanan məşqlər var.</p><ul style="margin:0;padding-left:20px"><li><b>Qrammatika:</b> 145 vahid (əsas kurs) + 53 bölmə (B2 hazırlıq kursu)</li><li><b>Lüğət:</b> 101 ümumi + 66 biznes vahidi</li><li><b>Köməkçi:</b> fellər cədvəli, kartlar, söz yaradılması, imtahan strategiyası</li><li><b>İrəliləyiş:</b> öyrəndiklərin brauzerdə saxlanır, internetsiz də işləyir</li></ul></div>'+
+   '<div class="card lead"><h3 style="margin-top:0">Bu saytın məqsədi</h3><p>Bu, <b>hazırlıq saytıdır</b>: dərs oxumaq məqsədilə tərtib olunub. Mövzular Azərbaycanca izah edilir, nümunələr və məşqlər öz tərtibimizdir.</p><ul style="margin:0;padding-left:20px"><li>Bu, <b>rəsmi imtahan materialı deyil</b>. Sınaq sualları real imtahanın sualları deyil, onun formatına uyğun məşqdir.</li><li>Heç bir imtahan təşkilatı, nəşriyyat və ya kurs müəllifi ilə əlaqəsi yoxdur.</li><li>Rəsmi hazırlıq üçün Cambridge, British Council və Oxford saytlarına keçidlər “Alətlər” bölməsindədir.</li><li>Səhv görsən, ona görə yoxla və mənbə ilə müqayisə et. Sayt yalnız köməkçi vasitədir.</li></ul></div>'+
+   '<div class="card" style="margin-top:14px"><h3 style="margin-top:0">Layihə nədir?</h3><p>İngilis dilini sıfırdan B2 səviyyəsinə qədər öyrənmək və <b>Cambridge B2 First</b> imtahanına hazırlaşmaq üçün sayt. Dörd kursun mövzuları Azərbaycanca izah olunur, hər dərsdə sxem, nümunə, tipik səhvlər və yoxlanan məşqlər var.</p><ul style="margin:0;padding-left:20px"><li><b>Qrammatika:</b> 145 vahid (əsas kurs) + 53 bölmə (B2 hazırlıq kursu)</li><li><b>Lüğət:</b> 101 ümumi + 66 biznes vahidi</li><li><b>Köməkçi:</b> fellər cədvəli, kartlar, söz yaradılması, imtahan strategiyası</li><li><b>İrəliləyiş:</b> öyrəndiklərin brauzerdə saxlanır, internetsiz də işləyir</li></ul></div>'+
    '<div class="card" style="margin-top:14px"><h3 style="margin-top:0">Necə başlamalı? (3 addım)</h3><ol style="margin:0;padding-left:20px"><li><b>Öyrən</b> bölməsindən kurs və vahid seç (məsələn, Qrammatika 1).</li><li>Dərsi oxu, məşqləri et, sonda <b>Öyrəndim ✓</b> bas.</li><li>Hər gün 1–2 dərs et, həftədə bir <b>İmtahan</b> bölməsində test həll et.</li></ol></div>'+
    '<h2>Saytın hissələri</h2><div class="grid">'+
    '<a class="card" href="#/books"><div class="k">Əsas</div><h3>Kurslar</h3><p style="margin:0;color:var(--mut)">Dörd kursun bütün dərsləri. Ən çox burada işləyəcəksən.</p></a>'+
