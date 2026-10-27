@@ -197,6 +197,7 @@ body{background-size:200% 200%;animation:bgshift 24s ease-in-out infinite altern
 .pal .menu i.on{outline:3px solid var(--a2)}
 @media (max-width:720px){.top{justify-content:space-between}.pal .menu{right:auto;left:0}}
 
+.brand{display:flex;align-items:center;gap:10px}.brand .logo{flex:none;width:30px;height:30px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.18)}.brand .bt{font-style:normal;min-width:0}
 /*NIGHT*/
 html:is([data-pal="night"],[data-pal="mocha"]){
   --cream:#25261d;--sand:#34342a;--sage:#4e5a4d;--olive:#e6dfc4;--ink:#efe9d2;--mutc:#b4b49c;

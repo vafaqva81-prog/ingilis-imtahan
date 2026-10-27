@@ -1,0 +1,16 @@
+{
+  "name": "İngilis dili, imtahana hazırlaşaq",
+  "short_name": "İngilis dili",
+  "description": "Azərbaycanca izahlı ingilis dili: qrammatika, lüğət, səsləndirmə, sınaq.",
+  "lang": "az",
+  "start_url": "./#/",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f2de",
+  "theme_color": "#f59e0b",
+  "icons": [
+    {"src": "img/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "img/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "img/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
